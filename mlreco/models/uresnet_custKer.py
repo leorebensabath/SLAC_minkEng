@@ -3,6 +3,8 @@ from torch import nn
 from MinkowskiEngine.MinkowskiNonlinearity import MinkowskiModuleBase
 import torch 
 
+from random import randint
+
 class ConcatTable(nn.Sequential):
     def __init__(self, *args):
         nn.Sequential.__init__(self, *args)
@@ -32,6 +34,18 @@ class AddTable(nn.Sequential):
 class Identity(ME.MinkowskiNetwork):
     def forward(self, input):
         return input
+
+def RandomCustomKernel() :
+    offset = []
+    for i in range(3) : 
+        for j in range(3) : 
+            r = randint(0, 2)
+            for k in range(3) :
+                if k != r : 
+                    offset.append([i, j, k])
+    custom_kernel = ME.KernelGenerator(kernel_size = 3, stride = 1, region_type=ME.RegionType.HYPERCROSS, dimension = 3, region_offsets = torch.IntTensor(offset))
+    
+    return(custom_kernel)    
     
 class MinkowskiLeakyReLU(MinkowskiModuleBase):
     MODULE = nn.LeakyReLU
@@ -44,7 +58,7 @@ class UResNet(ME.MinkowskiNetwork):
 
     MODULES = ['uresnet_lonely']
 
-    def __init__(self, cfg, name="uresnet_lonely"):
+    def __init__(self, cfg, name="uresnet_lonely_custKer"):
         self._model_config = cfg[name]
         self._dimension = self._model_config.get('data_dim', 3)
         
@@ -68,9 +82,9 @@ class UResNet(ME.MinkowskiNetwork):
             module = nn.Sequential(ConcatTable(Identity(self._dimension) if a == b else ME.MinkowskiLinear(a, b), \
 nn.Sequential( \
 ME.MinkowskiBatchNorm(num_features = a), MinkowskiLeakyReLU(), \
-ME.MinkowskiConvolution(a, b, kernel_size=kernel_size, stride=1, dimension=self._dimension), \
+ME.MinkowskiConvolution(a, b, kernel_generator=RandomCustomKernel(), stride=1, dimension=self._dimension), \
 ME.MinkowskiBatchNorm(num_features = b), MinkowskiLeakyReLU(), \
-ME.MinkowskiConvolution(b, b, kernel_size=kernel_size, stride=1, dimension=self._dimension)) \
+ME.MinkowskiConvolution(b, b, kernel_generator=RandomCustomKernel(), stride=1, dimension=self._dimension)) \
 ), AddTable())
             m.add_module(f'block_{num}', module)
             
@@ -100,6 +114,7 @@ ME.MinkowskiConvolution(b, b, kernel_size=kernel_size, stride=1, dimension=self.
         
         self.encoding_block = []
         self.encoding_conv = []
+        
         
         for i in range(num_strides):
             mod = nn.Sequential()
@@ -178,14 +193,14 @@ ME.MinkowskiConvolution(b, b, kernel_size=kernel_size, stride=1, dimension=self.
                   
 
 class SegmentationLoss(nn.modules.loss._Loss):
-    '''
+    """
     INPUT_SCHEMA = [
         ["parse_sparse3d_scn", (int,), (3, 1)]
     ]
 
     def __init__(self, cfg, reduction='sum'):
         super(SegmentationLoss, self).__init__(reduction=reduction)
-        self._cfg = cfg['uresnet_lonely']
+        self._cfg = cfg['uresnet_lonely_custKer']
         self._num_classes = self._cfg.get('num_classes', 5)
         self._alpha = self._cfg.get('alpha', 1.0)
         self._beta = self._cfg.get('beta', 1.0)
@@ -195,11 +210,9 @@ class SegmentationLoss(nn.modules.loss._Loss):
     def forward(self, result, label, weights=None):
 #        print("result : ", result)
 #       print("label : ", label)
-        print("result : ", result)
-        print("label : ", label)
+
         assert len(result['segmentation']) == len(label)
         batch_ids = [d[:, 0] for d in label]
-        print("batch_ids : ", batch_ids)
         uresnet_loss, uresnet_acc = 0., 0.
         uresnet_acc_class = [0.] * self._num_classes
         count_class = [0.] * self._num_classes
@@ -207,33 +220,25 @@ class SegmentationLoss(nn.modules.loss._Loss):
         class_acc_list = [[0 for i in range(self._num_classes)] for j in range(self._num_classes)]
         class_count_list = [0 for i in range(self._num_classes)]
         
-        
         for i in range(len(label)):
-            print('i : ', i)
-            print(batch_ids[i].unique())
-            for b in batch_ids[i].unique():
+            for b in batch_ids[0].unique():
                 batch_index = batch_ids[i] == b
-                print("b : ", b)
-                print("batch_index : ", batch_index)
+
                 event_segmentation = result['segmentation'][0][batch_index]  # (N, num_classes)
-                event_label = label[i][batch_index, :][:, -1][:, None]  # (N, 1)
+                event_label = label[i][batch_index][:, -1][:, None]  # (N, 1)
                 event_label = torch.squeeze(event_label, dim=-1).long()
-                print("event_segmentation : ", event_segmentation)
-                print("event_label : ", event_label)
+
                 # check and warn about invalid labels
-                """
                 unique_label,unique_count = torch.unique(event_label,return_counts=True)
                 if (unique_label >= self._num_classes).long().sum():
                     print('Invalid semantic label found (will be ignored)')
                     print('Semantic label values:',unique_label)
                     print('Label counts:',unique_count)
-                """
-                """
                 # Now mask to compute the rest of UResNet loss
                 mask = event_label < self._num_classes
                 event_segmentation = event_segmentation[mask]
                 event_label = event_label[mask]
-                """
+
                 if event_label.shape[0] > 0:  # FIXME how to handle empty mask?
                     # Loss for semantic segmentation
                     loss_seg = self.cross_entropy(event_segmentation, event_label)
@@ -289,7 +294,7 @@ class SegmentationLoss(nn.modules.loss._Loss):
                 results[f'class_acc_list_{i}_{j}'] = class_acc_list[i][j]/class_count_list[i]
                 
         return results
-        '''
+    """
     def __init__(self, cfg, name = 'segmentation_loss') : 
         super(SegmentationLoss, self).__init__()
         self.xentropy = nn.CrossEntropyLoss(reduction = 'none')

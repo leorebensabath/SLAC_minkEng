@@ -11,6 +11,7 @@ from collections import defaultdict
 
 from mlreco.nn.loss.lovasz import StableBCELoss
 
+#Same network as the one coded with SSCN
 
 class ParticleImageClassifier(NetworkBase):
 
@@ -34,9 +35,9 @@ class ParticleImageClassifier(NetworkBase):
 
         input_tensor = ME.SparseTensor(features, coords=coords)
         latent = self.encoder(input_tensor)[0]
-        # perm = np.lexsort((latent.C.detach().cpu().numpy()[:, 3], 
-        #                    latent.C.detach().cpu().numpy()[:, 2], 
-        #                    latent.C.detach().cpu().numpy()[:, 1], 
+        # perm = np.lexsort((latent.C.detach().cpu().numpy()[:, 3],
+        #                    latent.C.detach().cpu().numpy()[:, 2],
+        #                    latent.C.detach().cpu().numpy()[:, 1],
         #                    latent.C.detach().cpu().numpy()[:, 0]))
         # print(latent.C[perm], latent.F[perm])
         latent = self.global_pooling(latent)
@@ -68,9 +69,9 @@ class ParticleTypesAndEinit(ParticleImageClassifier):
 
         input_tensor = ME.SparseTensor(features, coords=coords)
         latent = self.encoder(input_tensor)[0]
-        # perm = np.lexsort((latent.C.detach().cpu().numpy()[:, 3], 
-        #                    latent.C.detach().cpu().numpy()[:, 2], 
-        #                    latent.C.detach().cpu().numpy()[:, 1], 
+        # perm = np.lexsort((latent.C.detach().cpu().numpy()[:, 3],
+        #                    latent.C.detach().cpu().numpy()[:, 2],
+        #                    latent.C.detach().cpu().numpy()[:, 1],
         #                    latent.C.detach().cpu().numpy()[:, 0]))
         # print(latent.C[perm], latent.F[perm])
         latent = self.global_pooling(latent)
@@ -105,9 +106,9 @@ class ParticleTypesAndKinematics(ParticleTypesAndEinit):
 
         input_tensor = ME.SparseTensor(features, coords=coords)
         latent = self.encoder(input_tensor)[0]
-        # perm = np.lexsort((latent.C.detach().cpu().numpy()[:, 3], 
-        #                    latent.C.detach().cpu().numpy()[:, 2], 
-        #                    latent.C.detach().cpu().numpy()[:, 1], 
+        # perm = np.lexsort((latent.C.detach().cpu().numpy()[:, 3],
+        #                    latent.C.detach().cpu().numpy()[:, 2],
+        #                    latent.C.detach().cpu().numpy()[:, 1],
         #                    latent.C.detach().cpu().numpy()[:, 0]))
         # print(latent.C[perm], latent.F[perm])
         latent = self.global_pooling(latent)
