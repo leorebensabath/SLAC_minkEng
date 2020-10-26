@@ -1,1 +1,1 @@
-# SLAC_minkEng
+Experimentations on SLAC lartpc_mlreco3d repository using MinkowskiEngine to code parts of the reconstruction chain
